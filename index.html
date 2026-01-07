@@ -8,10 +8,43 @@
   
   <style>
     body { font-family: 'Prompt', sans-serif; text-align: center; background: #f4f6f9; padding: 20px; color: #333; }
-    #container { position: relative; display: inline-block; margin-top: 15px; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 16px rgba(0,0,0,0.2); background: #000; }
+    
+    /* Container หลัก */
+    #container { 
+      position: relative; 
+      display: inline-block; 
+      margin-top: 15px; 
+      border-radius: 10px; 
+      overflow: hidden; 
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2); 
+      background: #000; 
+    }
+    
     video { display: block; object-fit: cover; }
     canvas { position: absolute; top: 0; left: 0; }
-    #countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 120px; font-weight: bold; color: white; text-shadow: 2px 2px 10px rgba(0,0,0,0.8); display: none; z-index: 10; pointer-events: none; }
+    
+    /* ตัวนับถอยหลัง */
+    #countdown-overlay { 
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+      font-size: 120px; font-weight: bold; color: white; 
+      text-shadow: 2px 2px 10px rgba(0,0,0,0.8); 
+      display: none; z-index: 10; pointer-events: none; 
+    }
+
+    /* เอฟเฟกต์แฟลชถ่ายรูป (Shutter Effect) */
+    #shutter-flash {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+    .flash-anim { animation: flash 0.2s ease-out; }
+    @keyframes flash {
+      0% { opacity: 0.8; }
+      100% { opacity: 0; }
+    }
+
     #status { margin-top: 15px; font-size: 18px; font-weight: 500; min-height: 30px; }
     .btn-group { margin-top: 20px; display: flex; justify-content: center; gap: 15px; }
     button { padding: 12px 30px; font-size: 18px; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.15); font-family: 'Prompt', sans-serif; transition: 0.2s;}
@@ -30,6 +63,7 @@
   <div id="container">
     <video id="video" width="640" height="480" autoplay muted playsinline></video>
     <div id="countdown-overlay">3</div>
+    <div id="shutter-flash"></div>
   </div>
 
   <div class="btn-group">
@@ -39,15 +73,16 @@
 
   <script>
     // ******************************************************
-    // นำ URL ที่ได้จากการ Deploy Google Apps Script มาวางตรงนี้
+    // ใส่ URL ของ Apps Script ที่นี่เหมือนเดิม
     // ******************************************************
-    const GAS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzpYV4iyfDavR6S2xrfUfWpQdlao-4GXtMSNRzcrXT69p6rdzP92NWWWMf7oqM2-kx-jw/exec'; 
+    const GAS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzpYV4iyfDavR6S2xrfUfWpQdlao-4GXtMSNRzcrXT69p6rdzP92NWWWMf7oqM2-kx-jw/exec';
 
     const video = document.getElementById('video');
     const status = document.getElementById('status');
     const btnScan = document.getElementById('btn-scan');
     const btnReg = document.getElementById('btn-reg');
     const countdownEl = document.getElementById('countdown-overlay');
+    const shutterFlash = document.getElementById('shutter-flash');
     
     let labeledFaceDescriptors = []; 
     let currentBestMatch = null; 
@@ -63,15 +98,21 @@
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
       oscillator.type = 'sine';
-      oscillator.frequency.value = 1000; 
+      oscillator.frequency.value = 880; // ปรับเสียงให้แหลมขึ้นนิดนึงเหมือนเสียงชัตเตอร์
       gainNode.gain.value = 0.1;
       oscillator.start();
-      setTimeout(() => oscillator.stop(), 200);
+      setTimeout(() => oscillator.stop(), 150); // สั้นลงนิดนึง
     }
 
-    // --- ฟังก์ชันส่งข้อมูลไป GAS ผ่าน Fetch API ---
+    // ฟังก์ชันสั่งแฟลชหน้าจอ
+    function triggerShutterEffect() {
+        shutterFlash.classList.add('flash-anim');
+        setTimeout(() => {
+            shutterFlash.classList.remove('flash-anim');
+        }, 500);
+    }
+
     async function callBackend(payload) {
-        // ใช้ fetch แบบ POST
         const response = await fetch(GAS_SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify(payload)
@@ -86,11 +127,8 @@
             await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
             await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
             
-            status.innerText = "⏳ 2/3 กำลังดึงข้อมูลใบหน้าจาก Cloud...";
-            
-            // เรียก API ไปดึงข้อมูล
+            status.innerText = "⏳ 2/3 กำลังดึงข้อมูลใบหน้า...";
             const data = await callBackend({ action: 'load_faces' });
-            
             if (data.status === 'success' && data.faces.length > 0) {
                  labeledFaceDescriptors = data.faces.map(f => {
                     const descriptorFloat32 = new Float32Array(Object.values(f.descriptor));
@@ -117,7 +155,7 @@
         const displaySize = { width: video.width, height: video.height };
         faceapi.matchDimensions(canvas, displaySize);
         
-        status.innerText = "✅ ระบบพร้อม! (มีข้อมูล " + labeledFaceDescriptors.length + " คน)";
+        status.innerText = "✅ ระบบพร้อมใช้งาน";
         btnScan.disabled = false; btnReg.disabled = false;
 
         setInterval(async () => {
@@ -148,7 +186,8 @@
         const timer = setInterval(() => {
             count--;
             if (count > 0) { countdownEl.innerText = count; } else {
-                clearInterval(timer); countdownEl.style.display = "none"; captureAndSave();
+                clearInterval(timer); countdownEl.style.display = "none"; 
+                captureAndSave(); // ถ่ายเลย!
             }
         }, 1000);
     }
@@ -159,8 +198,13 @@
             playBeep(); playBeep(); btnScan.disabled = false; return;
         }
 
-        status.innerText = "📸 กำลังส่งข้อมูลขึ้น Cloud..."; status.style.color = "blue";
+        // --- 1. Feedback ทันที (ไม่ต้องรอ Server) ---
+        playBeep(); // เล่นเสียงทันที
+        triggerShutterEffect(); // แฟลชทันที
+        status.innerText = "📸 ถ่ายเรียบร้อย! กำลังบันทึกข้อมูล..."; 
+        status.style.color = "blue";
         
+        // --- 2. เตรียมภาพ ---
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = video.width; tempCanvas.height = video.height;
         const ctx = tempCanvas.getContext('2d');
@@ -177,17 +221,22 @@
 
         const imageBase64 = tempCanvas.toDataURL('image/jpeg', 0.8);
 
-        // เรียก API
+        // --- 3. ส่งข้อมูลไป Backend (ทำเบื้องหลัง) ---
         callBackend({
             action: 'save_scan',
             name: currentBestMatch.label,
             image: imageBase64
         }).then(res => {
-            playBeep();
-            status.innerText = "✅ " + res.message; status.style.color = "green";
-            setTimeout(() => { status.innerText = "พร้อมใช้งาน..."; status.style.color = "#333"; btnScan.disabled = false; }, 3000);
+            // เมื่อเสร็จจริงค่อยแจ้งผลลัพธ์สุดท้าย
+            status.innerText = "✅ บันทึกเสร็จสมบูรณ์: " + currentBestMatch.label; 
+            status.style.color = "green";
+            btnScan.disabled = false; // ปลดล็อกปุ่มเมื่อบันทึกเสร็จจริง
+            
+            setTimeout(() => { status.innerText = "พร้อมใช้งาน..."; status.style.color = "#333"; }, 3000);
         }).catch(err => {
-            status.innerText = "❌ Error: " + err; btnScan.disabled = false;
+            status.innerText = "❌ เกิดข้อผิดพลาดในการบันทึก: " + err; 
+            status.style.color = "red";
+            btnScan.disabled = false;
         });
     }
 
