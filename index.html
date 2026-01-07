@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ระบบสแกนใบหน้าลงเวลา</title>
+  <title>ระบบสแกนใบหน้าลงเวลา (Focus One Face)</title>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   
   <style>
     body { font-family: 'Prompt', sans-serif; text-align: center; background: #f4f6f9; padding: 20px; color: #333; }
     
-    /* Container หลัก */
     #container { 
       position: relative; 
       display: inline-block; 
@@ -23,7 +22,6 @@
     video { display: block; object-fit: cover; }
     canvas { position: absolute; top: 0; left: 0; }
     
-    /* ตัวนับถอยหลัง */
     #countdown-overlay { 
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
       font-size: 120px; font-weight: bold; color: white; 
@@ -31,19 +29,13 @@
       display: none; z-index: 10; pointer-events: none; 
     }
 
-    /* เอฟเฟกต์แฟลชถ่ายรูป (Shutter Effect) */
+    /* Flash Effect */
     #shutter-flash {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: white;
-      opacity: 0;
-      pointer-events: none;
-      z-index: 20;
+      background: white; opacity: 0; pointer-events: none; z-index: 20;
     }
     .flash-anim { animation: flash 0.2s ease-out; }
-    @keyframes flash {
-      0% { opacity: 0.8; }
-      100% { opacity: 0; }
-    }
+    @keyframes flash { 0% { opacity: 0.8; } 100% { opacity: 0; } }
 
     #status { margin-top: 15px; font-size: 18px; font-weight: 500; min-height: 30px; }
     .btn-group { margin-top: 20px; display: flex; justify-content: center; gap: 15px; }
@@ -57,7 +49,7 @@
 </head>
 <body>
 
-  <h2>ระบบลงเวลา (Connected to Google Sheets)</h2>
+  <h2>ระบบลงเวลา (จับเฉพาะคนหน้าสุด)</h2>
   <div id="status">กำลังเชื่อมต่อ API...</div>
 
   <div id="container">
@@ -73,9 +65,9 @@
 
   <script>
     // ******************************************************
-    // ใส่ URL ของ Apps Script ที่นี่เหมือนเดิม
+    // ใส่ URL ของ Apps Script ที่นี่
     // ******************************************************
-    const GAS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzpYV4iyfDavR6S2xrfUfWpQdlao-4GXtMSNRzcrXT69p6rdzP92NWWWMf7oqM2-kx-jw/exec';
+    const GAS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzpYV4iyfDavR6S2xrfUfWpQdlao-4GXtMSNRzcrXT69p6rdzP92NWWWMf7oqM2-kx-jw/exec'; 
 
     const video = document.getElementById('video');
     const status = document.getElementById('status');
@@ -98,24 +90,20 @@
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
       oscillator.type = 'sine';
-      oscillator.frequency.value = 880; // ปรับเสียงให้แหลมขึ้นนิดนึงเหมือนเสียงชัตเตอร์
+      oscillator.frequency.value = 880;
       gainNode.gain.value = 0.1;
       oscillator.start();
-      setTimeout(() => oscillator.stop(), 150); // สั้นลงนิดนึง
+      setTimeout(() => oscillator.stop(), 150);
     }
 
-    // ฟังก์ชันสั่งแฟลชหน้าจอ
     function triggerShutterEffect() {
         shutterFlash.classList.add('flash-anim');
-        setTimeout(() => {
-            shutterFlash.classList.remove('flash-anim');
-        }, 500);
+        setTimeout(() => { shutterFlash.classList.remove('flash-anim'); }, 500);
     }
 
     async function callBackend(payload) {
         const response = await fetch(GAS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(payload)
+            method: 'POST', body: JSON.stringify(payload)
         });
         return await response.json();
     }
@@ -139,8 +127,7 @@
             status.innerText = "⏳ 3/3 กำลังเปิดกล้อง...";
             startVideo();
         } catch (err) {
-            status.innerText = "❌ Error: " + err.message;
-            status.style.color = "red";
+            status.innerText = "❌ Error: " + err.message; status.style.color = "red";
         }
     }
 
@@ -164,17 +151,41 @@
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
                 
-                if (labeledFaceDescriptors.length > 0) {
-                    const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.45);
-                    currentBestMatch = null; 
-                    resizedDetections.forEach(result => {
-                        const match = faceMatcher.findBestMatch(result.descriptor);
-                        const box = result.detection.box;
+                // --- ส่วนที่แก้ไข: เลือกเฉพาะหน้าใหญ่สุด ---
+                if (resizedDetections.length > 0) {
+                    
+                    // เรียงลำดับตามขนาดพื้นที่ (กว้าง x สูง) จากมากไปน้อย
+                    resizedDetections.sort((a, b) => {
+                        const areaA = a.detection.box.width * a.detection.box.height;
+                        const areaB = b.detection.box.width * b.detection.box.height;
+                        return areaB - areaA; // มาก -> น้อย
+                    });
+
+                    // เลือกตัวแรกสุด (ตัวที่ใหญ่สุด/ใกล้สุด)
+                    const largestFace = resizedDetections[0];
+
+                    if (labeledFaceDescriptors.length > 0) {
+                        const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.45);
+                        
+                        // ตรวจสอบแค่หน้าเดียว (หน้าใหญ่สุด)
+                        const match = faceMatcher.findBestMatch(largestFace.descriptor);
+                        const box = largestFace.detection.box;
+                        
+                        // วาดกรอบ
                         const drawBox = new faceapi.draw.DrawBox(box, { label: match.toString() });
                         drawBox.draw(canvas);
-                        if (match.label !== 'unknown') currentBestMatch = match;
-                    });
+
+                        // อัปเดตตัวแปร Global
+                        if (match.label !== 'unknown') {
+                            currentBestMatch = match;
+                        } else {
+                            currentBestMatch = null; // ถ้าหน้าใหญ่สุดไม่รู้จัก ก็ถือว่าไม่เจอ
+                        }
+                    }
+                } else {
+                    currentBestMatch = null; // ไม่เจอหน้าเลย
                 }
+                // ---------------------------------------
             }
         }, 100);
     });
@@ -187,30 +198,27 @@
             count--;
             if (count > 0) { countdownEl.innerText = count; } else {
                 clearInterval(timer); countdownEl.style.display = "none"; 
-                captureAndSave(); // ถ่ายเลย!
+                captureAndSave(); 
             }
         }, 1000);
     }
 
     function captureAndSave() {
         if (!currentBestMatch || currentBestMatch.label === 'unknown') {
-            status.innerText = "❌ ไม่พบใบหน้า"; status.style.color = "red";
+            status.innerText = "❌ ไม่พบใบหน้าผู้ลงทะเบียน (กรุณามายืนหน้าสุด)"; status.style.color = "red";
             playBeep(); playBeep(); btnScan.disabled = false; return;
         }
 
-        // --- 1. Feedback ทันที (ไม่ต้องรอ Server) ---
-        playBeep(); // เล่นเสียงทันที
-        triggerShutterEffect(); // แฟลชทันที
-        status.innerText = "📸 ถ่ายเรียบร้อย! กำลังบันทึกข้อมูล..."; 
+        playBeep(); 
+        triggerShutterEffect(); 
+        status.innerText = "📸 ถ่ายเรียบร้อย! (" + currentBestMatch.label + ")"; 
         status.style.color = "blue";
         
-        // --- 2. เตรียมภาพ ---
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = video.width; tempCanvas.height = video.height;
         const ctx = tempCanvas.getContext('2d');
         ctx.drawImage(video, 0, 0);
 
-        // Watermark
         const now = new Date();
         const dateText = now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const timeText = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -221,21 +229,17 @@
 
         const imageBase64 = tempCanvas.toDataURL('image/jpeg', 0.8);
 
-        // --- 3. ส่งข้อมูลไป Backend (ทำเบื้องหลัง) ---
         callBackend({
             action: 'save_scan',
             name: currentBestMatch.label,
             image: imageBase64
         }).then(res => {
-            // เมื่อเสร็จจริงค่อยแจ้งผลลัพธ์สุดท้าย
             status.innerText = "✅ บันทึกเสร็จสมบูรณ์: " + currentBestMatch.label; 
             status.style.color = "green";
-            btnScan.disabled = false; // ปลดล็อกปุ่มเมื่อบันทึกเสร็จจริง
-            
+            btnScan.disabled = false;
             setTimeout(() => { status.innerText = "พร้อมใช้งาน..."; status.style.color = "#333"; }, 3000);
         }).catch(err => {
-            status.innerText = "❌ เกิดข้อผิดพลาดในการบันทึก: " + err; 
-            status.style.color = "red";
+            status.innerText = "❌ เกิดข้อผิดพลาด: " + err; status.style.color = "red";
             btnScan.disabled = false;
         });
     }
@@ -244,19 +248,17 @@
         const name = prompt("ชื่อ-สกุล:"); if (!name) return;
         status.innerText = "⏳ กำลังประมวลผล...";
         try {
+            // ใช้ Logic เดียวกันคือ detectSingleFace (มันจะจับหน้าใหญ่สุดให้อัตโนมัติโดยธรรมชาติของ function นี้)
             const detection = await faceapi.detectSingleFace(video, faceOptions).withFaceLandmarks().withFaceDescriptor();
             if (detection) {
                 labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]));
                 status.innerText = "💾 กำลังส่งข้อมูลไปบันทึก...";
                 
                 await callBackend({
-                    action: 'save_face',
-                    name: name,
-                    descriptor: Array.from(detection.descriptor)
+                    action: 'save_face', name: name, descriptor: Array.from(detection.descriptor)
                 });
                 
-                status.innerText = "🎉 ลงทะเบียนสำเร็จ!";
-                alert("เรียบร้อย!");
+                status.innerText = "🎉 ลงทะเบียนสำเร็จ!"; alert("เรียบร้อย!");
             } else { alert("❌ ไม่พบใบหน้า"); }
             status.innerText = "พร้อมใช้งาน...";
         } catch (e) { alert("Error: " + e); }
