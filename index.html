@@ -2,269 +2,458 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ระบบสแกนใบหน้าลงเวลา (Focus One Face)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Face Time Attendance</title>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;700&display=swap" rel="stylesheet">
   
   <style>
-    body { font-family: 'Prompt', sans-serif; text-align: center; background: #f4f6f9; padding: 20px; color: #333; }
-    
-    #container { 
-      position: relative; 
-      display: inline-block; 
-      margin-top: 15px; 
-      border-radius: 10px; 
-      overflow: hidden; 
-      box-shadow: 0 8px 16px rgba(0,0,0,0.2); 
+    /* Reset & Base Styles */
+    * { box-sizing: border-box; }
+    body { 
+      font-family: 'Prompt', sans-serif; 
+      margin: 0; padding: 0; 
       background: #000; 
+      color: white; 
+      height: 100vh; 
+      overflow: hidden; /* ห้ามเลื่อนหน้าจอ */
+      display: flex; flex-direction: column;
+    }
+
+    /* --- หน้า Home (เมนูหลัก) --- */
+    #home-screen {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 100;
+      transition: transform 0.3s ease-in-out;
     }
     
-    video { display: block; object-fit: cover; }
-    canvas { position: absolute; top: 0; left: 0; }
-    
-    #countdown-overlay { 
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-      font-size: 120px; font-weight: bold; color: white; 
-      text-shadow: 2px 2px 10px rgba(0,0,0,0.8); 
-      display: none; z-index: 10; pointer-events: none; 
+    .logo-area { margin-bottom: 50px; text-align: center; }
+    .logo-icon { font-size: 80px; margin-bottom: 10px; }
+    .app-title { font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+    .app-subtitle { font-size: 16px; opacity: 0.8; }
+
+    .menu-btn {
+      width: 80%; max-width: 300px;
+      padding: 18px; margin: 10px 0;
+      font-size: 18px; font-weight: 500; font-family: 'Prompt', sans-serif;
+      border: none; border-radius: 50px;
+      cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
     }
+    .menu-btn:active { transform: scale(0.95); }
+    
+    .btn-checkin { background: #fff; color: #1e3c72; font-weight: bold; }
+    .btn-register { background: rgba(255,255,255,0.2); color: #fff; border: 2px solid rgba(255,255,255,0.5); }
+
+    /* --- หน้า Camera (ถ่ายภาพ) --- */
+    #camera-screen {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: #000;
+      display: none; /* ซ่อนไว้ก่อน */
+      z-index: 50;
+    }
+
+    /* วิดีโอเต็มจอ */
+    #video-wrapper {
+      position: relative; width: 100%; height: 100%; overflow: hidden;
+    }
+    video {
+      width: 100%; height: 100%;
+      object-fit: cover; /* ให้ภาพเต็มจอโดยไม่เสียสัดส่วน (ตัดขอบออก) */
+      transform: scaleX(-1); /* กลับด้านเหมือนกระจก */
+    }
+    canvas { 
+      position: absolute; top: 0; left: 0; 
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    /* UI Overlay บนกล้อง */
+    .top-bar {
+      position: absolute; top: 0; left: 0; width: 100%;
+      padding: 20px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+      display: flex; justify-content: space-between; align-items: center;
+      z-index: 60;
+    }
+    .status-text { font-size: 14px; text-shadow: 1px 1px 2px black; }
+    .close-btn {
+      background: rgba(0,0,0,0.3); border: none; color: white;
+      width: 40px; height: 40px; border-radius: 50%;
+      font-size: 20px; cursor: pointer;
+    }
+
+    /* ปุ่ม Shutter ด้านล่าง */
+    .bottom-controls {
+      position: absolute; bottom: 0; left: 0; width: 100%;
+      height: 120px;
+      display: flex; justify-content: center; align-items: center;
+      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+      z-index: 60;
+    }
+
+    /* ปุ่มถ่ายรูปวงกลม (เหมือน iPhone) */
+    #shutter-btn {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3); /* วงนอกจางๆ */
+      border: 4px solid white;
+      display: flex; justify-content: center; align-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    #shutter-btn .inner-circle {
+      width: 65px; height: 65px;
+      background: white;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+    #shutter-btn:active .inner-circle { width: 55px; height: 55px; background: #ddd; }
+    #shutter-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ปุ่มลงทะเบียน (เปลี่ยนสี) */
+    #shutter-btn.reg-mode { border-color: #007bff; }
+    #shutter-btn.reg-mode .inner-circle { background: #007bff; }
 
     /* Flash Effect */
     #shutter-flash {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: white; opacity: 0; pointer-events: none; z-index: 20;
+      background: white; opacity: 0; pointer-events: none; z-index: 100;
     }
     .flash-anim { animation: flash 0.2s ease-out; }
     @keyframes flash { 0% { opacity: 0.8; } 100% { opacity: 0; } }
 
-    #status { margin-top: 15px; font-size: 18px; font-weight: 500; min-height: 30px; }
-    .btn-group { margin-top: 20px; display: flex; justify-content: center; gap: 15px; }
-    button { padding: 12px 30px; font-size: 18px; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.15); font-family: 'Prompt', sans-serif; transition: 0.2s;}
-    #btn-scan { background: #28a745; color: white; }
-    #btn-scan:disabled { background: #ccc; cursor: not-allowed; }
-    #btn-reg { background: #007bff; color: white; }
-    #btn-reg:disabled { background: #ccc; }
+    /* Countdown */
+    #countdown-overlay {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 150px; font-weight: bold; color: white;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      display: none; z-index: 80;
+    }
+
   </style>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <h2>ระบบลงเวลา (จับเฉพาะคนหน้าสุด)</h2>
-  <div id="status">กำลังเชื่อมต่อ API...</div>
+  <div id="home-screen">
+    <div class="logo-area">
+      <div class="logo-icon">📸</div>
+      <div class="app-title">Face Check-in</div>
+      <div class="app-subtitle">ระบบลงเวลาด้วยใบหน้า</div>
+    </div>
+    
+    <button class="menu-btn btn-checkin" onclick="openCamera('scan')">
+      <span>🕒</span> ลงเวลาทำงาน
+    </button>
+    
+    <button class="menu-btn btn-register" onclick="openCamera('register')">
+      <span>👤</span> ลงทะเบียนใบหน้า
+    </button>
 
-  <div id="container">
-    <video id="video" width="640" height="480" autoplay muted playsinline></video>
-    <div id="countdown-overlay">3</div>
-    <div id="shutter-flash"></div>
+    <div style="margin-top:30px; font-size: 12px; opacity: 0.5;">v.2.0 Mobile Optimized</div>
   </div>
 
-  <div class="btn-group">
-    <button id="btn-scan" onclick="startCheckInProcess()" disabled>🕒 กดปุ่มเพื่อลงเวลา</button>
-    <button id="btn-reg" onclick="registerFace()" disabled>👤 ลงทะเบียนใบหน้าใหม่</button>
+  <div id="camera-screen">
+    <div class="top-bar">
+      <div id="status">กำลังเตรียมกล้อง...</div>
+      <button class="close-btn" onclick="closeCamera()">✕</button>
+    </div>
+
+    <div id="video-wrapper">
+      <video id="video" autoplay muted playsinline></video>
+      <div id="countdown-overlay">3</div>
+      <div id="shutter-flash"></div>
+    </div>
+
+    <div class="bottom-controls">
+      <div id="shutter-btn" onclick="handleShutter()">
+        <div class="inner-circle"></div>
+      </div>
+    </div>
   </div>
 
   <script>
     // ******************************************************
-    // ใส่ URL ของ Apps Script ที่นี่
+    // ใส่ URL ของ APPS SCRIPT ที่นี่
     // ******************************************************
     const GAS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzpYV4iyfDavR6S2xrfUfWpQdlao-4GXtMSNRzcrXT69p6rdzP92NWWWMf7oqM2-kx-jw/exec'; 
 
+    // ตัวแปรระบบ
+    let currentMode = 'scan'; // 'scan' หรือ 'register'
+    let isCameraRunning = false;
+    let detectionInterval;
+    let labeledFaceDescriptors = [];
+    let currentBestMatch = null;
+    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+    
+    // Element References
+    const homeScreen = document.getElementById('home-screen');
+    const cameraScreen = document.getElementById('camera-screen');
     const video = document.getElementById('video');
-    const status = document.getElementById('status');
-    const btnScan = document.getElementById('btn-scan');
-    const btnReg = document.getElementById('btn-reg');
+    const statusEl = document.getElementById('status');
+    const shutterBtn = document.getElementById('shutter-btn');
     const countdownEl = document.getElementById('countdown-overlay');
     const shutterFlash = document.getElementById('shutter-flash');
-    
-    let labeledFaceDescriptors = []; 
-    let currentBestMatch = null; 
 
-    const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-    const faceOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 });
-
+    // Audio Context
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playBeep() {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 880;
-      gainNode.gain.value = 0.1;
-      oscillator.start();
-      setTimeout(() => oscillator.stop(), 150);
+
+    // --- Core Functions ---
+
+    // 1. เปิดกล้องตามโหมดที่เลือก
+    async function openCamera(mode) {
+      currentMode = mode;
+      
+      // UI Change
+      homeScreen.style.display = 'none';
+      cameraScreen.style.display = 'block';
+      
+      // ปรับหน้าตาปุ่มตามโหมด
+      if (mode === 'register') {
+        shutterBtn.classList.add('reg-mode');
+        statusEl.innerText = "โหมด: ลงทะเบียน (กดปุ่มเพื่อบันทึก)";
+      } else {
+        shutterBtn.classList.remove('reg-mode');
+        statusEl.innerText = "โหมด: ลงเวลา (กดปุ่มเพื่อถ่าย)";
+      }
+
+      // เริ่มโหลด AI และเปิดกล้อง
+      if (!isCameraRunning) {
+        await initCameraSystem();
+      }
     }
 
-    function triggerShutterEffect() {
-        shutterFlash.classList.add('flash-anim');
-        setTimeout(() => { shutterFlash.classList.remove('flash-anim'); }, 500);
+    // 2. ปิดกล้อง กลับหน้า Home
+    function closeCamera() {
+      homeScreen.style.display = 'flex';
+      cameraScreen.style.display = 'none';
+      
+      // หยุดการตรวจจับ แต่เลี้ยงกล้องไว้เพื่อความเร็วในการเข้าครั้งหน้า
+      // (ถ้าต้องการประหยัดแบต ให้สั่ง video.pause() หรือ stop stream ที่นี่)
+    }
+
+    async function initCameraSystem() {
+      try {
+        statusEl.innerText = "⏳ กำลังโหลด AI...";
+        
+        // โหลดโมเดล
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+
+        // โหลดข้อมูลใบหน้า
+        statusEl.innerText = "⏳ กำลังโหลดฐานข้อมูล...";
+        const data = await callBackend({ action: 'load_faces' });
+        if (data.status === 'success' && data.faces.length > 0) {
+            labeledFaceDescriptors = data.faces.map(f => {
+              const descriptorFloat32 = new Float32Array(Object.values(f.descriptor));
+              return new faceapi.LabeledFaceDescriptors(f.label, [descriptorFloat32]);
+            });
+        }
+
+        // เปิดกล้อง (บังคับกล้องหน้า + ขนาดที่เหมาะสม)
+        statusEl.innerText = "กำลังเปิดกล้อง...";
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'user', // กล้องหน้า
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 } 
+          } 
+        });
+        video.srcObject = stream;
+        isCameraRunning = true;
+
+      } catch (err) {
+        statusEl.innerText = "Error: " + err.message;
+        alert("ไม่สามารถเปิดกล้องได้: " + err.message);
+      }
+    }
+
+    // Event: เมื่อวิดีโอเล่น ให้เริ่มลูป AI
+    video.addEventListener('play', () => {
+      // สร้าง Canvas สำหรับวาดกรอบ (เราซ่อน Canvas ไว้ใน Mobile Mode เพราะอยากให้ดูคลีนๆ แต่ AI ยังทำงานอยู่)
+      const canvas = faceapi.createCanvasFromMedia(video);
+      document.getElementById('video-wrapper').append(canvas);
+      
+      // ซ่อน Canvas (Option: ถ้าอยากให้เห็นกรอบเขียว ให้ลบบรรทัดนี้)
+      // canvas.style.display = 'none'; 
+
+      const displaySize = { width: video.videoWidth, height: video.videoHeight };
+      faceapi.matchDimensions(canvas, displaySize);
+
+      statusEl.innerText = currentMode === 'scan' ? "พร้อม! กดปุ่มถ่ายภาพ" : "พร้อมลงทะเบียน";
+
+      detectionInterval = setInterval(async () => {
+        // หยุดทำงานถ้าหน้ากล้องถูกปิดอยู่
+        if (cameraScreen.style.display === 'none') return;
+
+        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 }))
+          .withFaceLandmarks().withFaceDescriptors();
+        
+        // Logic เลือกหน้าใหญ่สุด (เหมือนเดิม)
+        if (detections.length > 0) {
+          detections.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height));
+          const largestFace = detections[0];
+
+          // เทียบหน้า
+          if (labeledFaceDescriptors.length > 0) {
+            const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.45);
+            const match = faceMatcher.findBestMatch(largestFace.descriptor);
+            
+            if (match.label !== 'unknown') {
+              currentBestMatch = match;
+              if(currentMode === 'scan') statusEl.innerText = "พบผู้ใช้งาน: " + match.label;
+            } else {
+              currentBestMatch = null;
+              if(currentMode === 'scan') statusEl.innerText = "ไม่รู้จักใบหน้า";
+            }
+          }
+        } else {
+          currentBestMatch = null;
+          if(currentMode === 'scan') statusEl.innerText = "มองหากล้อง...";
+        }
+      }, 200);
+    });
+
+    // 3. ฟังก์ชันกดปุ่ม Shutter
+    function handleShutter() {
+      if (currentMode === 'scan') {
+        // โหมดลงเวลา: นับถอยหลัง -> ถ่าย
+        startCountdownAndCapture();
+      } else {
+        // โหมดลงทะเบียน: ถามชื่อ -> ถ่ายเลย (ไม่ต้องนับ)
+        registerProcess();
+      }
+    }
+
+    function startCountdownAndCapture() {
+      if (labeledFaceDescriptors.length === 0) { alert("ยังไม่มีฐานข้อมูลใบหน้า"); return; }
+      
+      shutterBtn.style.pointerEvents = 'none'; // ล็อกปุ่ม
+      let count = 3;
+      countdownEl.style.display = 'block';
+      countdownEl.innerText = count;
+
+      const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.innerText = count;
+        } else {
+          clearInterval(timer);
+          countdownEl.style.display = 'none';
+          captureScan(); // ถ่ายจริง
+        }
+      }, 1000);
+    }
+
+    // Process: ลงเวลา
+    function captureScan() {
+      if (!currentBestMatch || currentBestMatch.label === 'unknown') {
+        statusEl.innerText = "❌ ไม่พบใบหน้า (ลองใหม่)";
+        playBeep(); playBeep();
+        shutterBtn.style.pointerEvents = 'auto';
+        return;
+      }
+
+      // Feedback
+      playBeep();
+      triggerFlash();
+      statusEl.innerText = "📸 กำลังบันทึก: " + currentBestMatch.label;
+
+      const imageBase64 = getResizedFrame();
+
+      callBackend({
+        action: 'save_scan',
+        name: currentBestMatch.label,
+        image: imageBase64
+      }).then(res => {
+        statusEl.innerText = "✅ " + res.message;
+        setTimeout(() => { statusEl.innerText = "พร้อมถ่ายต่อ..."; shutterBtn.style.pointerEvents = 'auto'; }, 2000);
+      });
+    }
+
+    // Process: ลงทะเบียน
+    async function registerProcess() {
+      const name = prompt("กรุณากรอกชื่อ-สกุล:");
+      if (!name) return;
+
+      statusEl.innerText = "⏳ กำลังประมวลผล...";
+      try {
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        
+        if (detection) {
+          playBeep();
+          triggerFlash();
+          
+          labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]));
+          
+          statusEl.innerText = "💾 กำลังส่งข้อมูล...";
+          await callBackend({
+            action: 'save_face',
+            name: name,
+            descriptor: Array.from(detection.descriptor)
+          });
+          
+          alert("ลงทะเบียนสำเร็จ: " + name);
+          statusEl.innerText = "ลงทะเบียนเรียบร้อย";
+        } else {
+          alert("❌ ไม่พบใบหน้า กรุณาลองใหม่");
+        }
+      } catch (e) {
+        alert("Error: " + e);
+      }
+    }
+
+    // Utilities
+    function triggerFlash() {
+      shutterFlash.classList.add('flash-anim');
+      setTimeout(() => shutterFlash.classList.remove('flash-anim'), 500);
+    }
+
+    function playBeep() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = 'sine'; osc.frequency.value = 880; gain.gain.value = 0.1;
+      osc.start(); setTimeout(() => osc.stop(), 150);
+    }
+
+    // ฟังก์ชันจับภาพ (ย่อขนาดให้พอดีก่อนส่ง เพื่อความเร็ว)
+    function getResizedFrame() {
+      const canvas = document.createElement('canvas');
+      // ลดขนาดภาพลงหน่อยเพื่อให้ส่งไวขึ้น (เช่น HD 720p)
+      canvas.width = video.videoWidth; 
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      
+      // พลิกรูปกลับคืน (เพราะเรา Mirror video ไว้)
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0);
+      
+      // Watermark
+      ctx.translate(canvas.width, 0); ctx.scale(-1, 1); // Reset transform for text
+      const now = new Date();
+      const dateText = now.toLocaleDateString('th-TH') + " " + now.toLocaleTimeString('th-TH');
+      ctx.font = "20px Prompt"; ctx.fillStyle = "white"; 
+      ctx.shadowColor="black"; ctx.shadowBlur=4;
+      ctx.fillText(dateText, 10, canvas.height - 20);
+
+      return canvas.toDataURL('image/jpeg', 0.8);
     }
 
     async function callBackend(payload) {
-        const response = await fetch(GAS_SCRIPT_URL, {
-            method: 'POST', body: JSON.stringify(payload)
-        });
-        return await response.json();
+      const response = await fetch(GAS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+      return await response.json();
     }
 
-    async function init() {
-        try {
-            status.innerText = "⏳ 1/3 กำลังโหลดโมเดล AI...";
-            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-            
-            status.innerText = "⏳ 2/3 กำลังดึงข้อมูลใบหน้า...";
-            const data = await callBackend({ action: 'load_faces' });
-            if (data.status === 'success' && data.faces.length > 0) {
-                 labeledFaceDescriptors = data.faces.map(f => {
-                    const descriptorFloat32 = new Float32Array(Object.values(f.descriptor));
-                    return new faceapi.LabeledFaceDescriptors(f.label, [descriptorFloat32]);
-                });
-            }
-            
-            status.innerText = "⏳ 3/3 กำลังเปิดกล้อง...";
-            startVideo();
-        } catch (err) {
-            status.innerText = "❌ Error: " + err.message; status.style.color = "red";
-        }
-    }
-
-    function startVideo() {
-        navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => { video.srcObject = stream; })
-            .catch(err => status.innerText = "❌ เปิดกล้องไม่ได้: " + err.message);
-    }
-
-    video.addEventListener('play', () => {
-        const canvas = faceapi.createCanvasFromMedia(video);
-        document.getElementById('container').append(canvas);
-        const displaySize = { width: video.width, height: video.height };
-        faceapi.matchDimensions(canvas, displaySize);
-        
-        status.innerText = "✅ ระบบพร้อมใช้งาน";
-        btnScan.disabled = false; btnReg.disabled = false;
-
-        setInterval(async () => {
-            if (!video.paused && !video.ended) {
-                const detections = await faceapi.detectAllFaces(video, faceOptions).withFaceLandmarks().withFaceDescriptors();
-                const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-                
-                // --- ส่วนที่แก้ไข: เลือกเฉพาะหน้าใหญ่สุด ---
-                if (resizedDetections.length > 0) {
-                    
-                    // เรียงลำดับตามขนาดพื้นที่ (กว้าง x สูง) จากมากไปน้อย
-                    resizedDetections.sort((a, b) => {
-                        const areaA = a.detection.box.width * a.detection.box.height;
-                        const areaB = b.detection.box.width * b.detection.box.height;
-                        return areaB - areaA; // มาก -> น้อย
-                    });
-
-                    // เลือกตัวแรกสุด (ตัวที่ใหญ่สุด/ใกล้สุด)
-                    const largestFace = resizedDetections[0];
-
-                    if (labeledFaceDescriptors.length > 0) {
-                        const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.45);
-                        
-                        // ตรวจสอบแค่หน้าเดียว (หน้าใหญ่สุด)
-                        const match = faceMatcher.findBestMatch(largestFace.descriptor);
-                        const box = largestFace.detection.box;
-                        
-                        // วาดกรอบ
-                        const drawBox = new faceapi.draw.DrawBox(box, { label: match.toString() });
-                        drawBox.draw(canvas);
-
-                        // อัปเดตตัวแปร Global
-                        if (match.label !== 'unknown') {
-                            currentBestMatch = match;
-                        } else {
-                            currentBestMatch = null; // ถ้าหน้าใหญ่สุดไม่รู้จัก ก็ถือว่าไม่เจอ
-                        }
-                    }
-                } else {
-                    currentBestMatch = null; // ไม่เจอหน้าเลย
-                }
-                // ---------------------------------------
-            }
-        }, 100);
-    });
-
-    function startCheckInProcess() {
-        if (labeledFaceDescriptors.length === 0) { alert("⚠️ ยังไม่มีฐานข้อมูลใบหน้า"); return; }
-        btnScan.disabled = true; 
-        let count = 3; countdownEl.style.display = "block"; countdownEl.innerText = count;
-        const timer = setInterval(() => {
-            count--;
-            if (count > 0) { countdownEl.innerText = count; } else {
-                clearInterval(timer); countdownEl.style.display = "none"; 
-                captureAndSave(); 
-            }
-        }, 1000);
-    }
-
-    function captureAndSave() {
-        if (!currentBestMatch || currentBestMatch.label === 'unknown') {
-            status.innerText = "❌ ไม่พบใบหน้าผู้ลงทะเบียน (กรุณามายืนหน้าสุด)"; status.style.color = "red";
-            playBeep(); playBeep(); btnScan.disabled = false; return;
-        }
-
-        playBeep(); 
-        triggerShutterEffect(); 
-        status.innerText = "📸 ถ่ายเรียบร้อย! (" + currentBestMatch.label + ")"; 
-        status.style.color = "blue";
-        
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.width; tempCanvas.height = video.height;
-        const ctx = tempCanvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-
-        const now = new Date();
-        const dateText = now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const timeText = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const fullText = `Date: ${dateText} Time: ${timeText} | ID: ${currentBestMatch.label}`;
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; ctx.fillRect(0, tempCanvas.height - 40, tempCanvas.width, 40);
-        ctx.font = "bold 18px Prompt, Arial"; ctx.fillStyle = "white"; ctx.textAlign = "right";
-        ctx.fillText(fullText, tempCanvas.width - 20, tempCanvas.height - 13);
-
-        const imageBase64 = tempCanvas.toDataURL('image/jpeg', 0.8);
-
-        callBackend({
-            action: 'save_scan',
-            name: currentBestMatch.label,
-            image: imageBase64
-        }).then(res => {
-            status.innerText = "✅ บันทึกเสร็จสมบูรณ์: " + currentBestMatch.label; 
-            status.style.color = "green";
-            btnScan.disabled = false;
-            setTimeout(() => { status.innerText = "พร้อมใช้งาน..."; status.style.color = "#333"; }, 3000);
-        }).catch(err => {
-            status.innerText = "❌ เกิดข้อผิดพลาด: " + err; status.style.color = "red";
-            btnScan.disabled = false;
-        });
-    }
-
-    window.registerFace = async function() {
-        const name = prompt("ชื่อ-สกุล:"); if (!name) return;
-        status.innerText = "⏳ กำลังประมวลผล...";
-        try {
-            // ใช้ Logic เดียวกันคือ detectSingleFace (มันจะจับหน้าใหญ่สุดให้อัตโนมัติโดยธรรมชาติของ function นี้)
-            const detection = await faceapi.detectSingleFace(video, faceOptions).withFaceLandmarks().withFaceDescriptor();
-            if (detection) {
-                labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]));
-                status.innerText = "💾 กำลังส่งข้อมูลไปบันทึก...";
-                
-                await callBackend({
-                    action: 'save_face', name: name, descriptor: Array.from(detection.descriptor)
-                });
-                
-                status.innerText = "🎉 ลงทะเบียนสำเร็จ!"; alert("เรียบร้อย!");
-            } else { alert("❌ ไม่พบใบหน้า"); }
-            status.innerText = "พร้อมใช้งาน...";
-        } catch (e) { alert("Error: " + e); }
-    };
-
-    init();
   </script>
 </body>
 </html>
