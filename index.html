@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Face SICU</title>
+  <title>Face SICU (Pro)</title>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;700&display=swap" rel="stylesheet">
   
   <style>
-    /* ... (ใช้ CSS เดิมทั้งหมด ไม่ต้องแก้) ... */
+    /* CSS เดิมทั้งหมด (ไม่ต้องแก้) */
     * { box-sizing: border-box; }
     body { font-family: 'Prompt', sans-serif; margin: 0; padding: 0; background: #000; color: white; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
     #home-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; transition: transform 0.3s ease-in-out; }
@@ -25,7 +25,6 @@
     video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
     canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
     .top-bar { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent); display: flex; justify-content: space-between; align-items: center; z-index: 60; }
-    .status-text { font-size: 14px; text-shadow: 1px 1px 2px black; }
     .close-btn { background: rgba(0,0,0,0.3); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; }
     .bottom-controls { position: absolute; bottom: 0; left: 0; width: 100%; height: 120px; display: flex; justify-content: center; align-items: center; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); z-index: 60; }
     #shutter-btn { width: 80px; height: 80px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); border: 4px solid white; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s; }
@@ -38,6 +37,16 @@
     .flash-anim { animation: flash 0.2s ease-out; }
     @keyframes flash { 0% { opacity: 0.8; } 100% { opacity: 0; } }
     #countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 150px; font-weight: bold; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.5); display: none; z-index: 80; }
+    
+    /* เพิ่ม Visual Feedback เวลา AI มั่นใจ */
+    #match-confidence-bar {
+      position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%);
+      width: 200px; height: 6px; background: rgba(255,255,255,0.3); border-radius: 3px;
+      overflow: hidden; display: none; z-index: 70;
+    }
+    #match-confidence-fill {
+      width: 0%; height: 100%; background: #00ff00; transition: width 0.2s;
+    }
   </style>
 </head>
 <body>
@@ -45,16 +54,12 @@
   <div id="home-screen">
     <div class="logo-area">
       <div class="logo-icon">📸</div>
-      <div class="app-title">Face Check-in</div>
-      <div class="app-subtitle">ระบบลงเวลาด้วยใบหน้า</div>
+      <div class="app-title">Face SICU Pro</div>
+      <div class="app-subtitle">ระบบความแม่นยำสูง</div>
     </div>
-    <button class="menu-btn btn-checkin" onclick="openCamera('scan')">
-      <span>🕒</span> ลงเวลาทำงาน
-    </button>
-    <button class="menu-btn btn-register" onclick="openCamera('register')">
-      <span>👤</span> ลงทะเบียนใบหน้า
-    </button>
-    <div style="margin-top:30px; font-size: 12px; opacity: 0.5;">v.2.1 Stable Camera</div>
+    <button class="menu-btn btn-checkin" onclick="openCamera('scan')"><span>🕒</span> ลงเวลาทำงาน</button>
+    <button class="menu-btn btn-register" onclick="openCamera('register')"><span>👤</span> ลงทะเบียนใบหน้า</button>
+    <div style="margin-top:30px; font-size: 12px; opacity: 0.5;">v.3.0 High Accuracy</div>
   </div>
 
   <div id="camera-screen">
@@ -66,6 +71,8 @@
       <video id="video" autoplay muted playsinline></video>
       <div id="countdown-overlay">3</div>
       <div id="shutter-flash"></div>
+      
+      <div id="match-confidence-bar"><div id="match-confidence-fill"></div></div>
     </div>
     <div class="bottom-controls">
       <div id="shutter-btn" onclick="handleShutter()">
@@ -85,7 +92,13 @@
     let detectionInterval;
     let labeledFaceDescriptors = [];
     let currentBestMatch = null;
-    let currentStream = null; // เก็บค่า Stream ไว้เพื่อสั่งปิดให้สนิท
+    let currentStream = null;
+
+    // --- ตัวแปรสำหรับ Logic ความแม่นยำ ---
+    let consistentMatchCount = 0; // นับจำนวนครั้งที่เจอหน้าเดิมต่อเนื่อง
+    let lastMatchedLabel = null;
+    const REQUIRED_CONSISTENT_FRAMES = 5; // ต้องเจอหน้าเดิมซ้ำ 5 ครั้งถึงจะคอนเฟิร์ม (ปรับเพิ่มได้ถ้ายังผิด)
+    const STRICT_THRESHOLD = 0.4; // ค่าความเหมือน (ยิ่งน้อยยิ่งเข้มงวด 0.4 คือเข้มงวดมาก)
 
     const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
     const homeScreen = document.getElementById('home-screen');
@@ -95,6 +108,8 @@
     const shutterBtn = document.getElementById('shutter-btn');
     const countdownEl = document.getElementById('countdown-overlay');
     const shutterFlash = document.getElementById('shutter-flash');
+    const confidenceBar = document.getElementById('match-confidence-bar');
+    const confidenceFill = document.getElementById('match-confidence-fill');
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     // --- Core Functions ---
@@ -104,66 +119,60 @@
       homeScreen.style.display = 'none';
       cameraScreen.style.display = 'block';
       
+      // Reset logic variables
+      consistentMatchCount = 0;
+      lastMatchedLabel = null;
+      confidenceBar.style.display = 'none';
+
       if (mode === 'register') {
         shutterBtn.classList.add('reg-mode');
-        statusEl.innerText = "โหมด: ลงทะเบียน (กดปุ่มเพื่อบันทึก)";
+        statusEl.innerText = "โหมด: ลงทะเบียน (High Accuracy)";
       } else {
         shutterBtn.classList.remove('reg-mode');
-        statusEl.innerText = "โหมด: ลงเวลา (กดปุ่มเพื่อถ่าย)";
+        statusEl.innerText = "โหมด: ลงเวลา (กำลังจำหน้า...)";
       }
 
       await initCameraSystem();
     }
 
     function closeCamera() {
-      // 1. สั่งปิดกล้องทันที (สำคัญมาก)
       stopStream();
-      
-      // 2. หยุด Loop AI
       if (detectionInterval) clearInterval(detectionInterval);
-      
-      // 3. UI Changes
       homeScreen.style.display = 'flex';
       cameraScreen.style.display = 'none';
       isCameraRunning = false;
-      
-      // 4. ล้าง Canvas ที่ค้างอยู่
       const canvas = document.querySelector('canvas');
       if (canvas) canvas.remove();
     }
 
-    // --- ฟังก์ชันหยุดกล้อง (Fix ปัญหากล้องค้าง) ---
     function stopStream() {
       if (currentStream) {
-        currentStream.getTracks().forEach(track => {
-          track.stop(); // สั่งหยุดทีละ Track
-        });
+        currentStream.getTracks().forEach(track => track.stop());
         currentStream = null;
       }
-      if (video.srcObject) {
-        video.srcObject = null;
-      }
+      if (video.srcObject) video.srcObject = null;
     }
 
     async function initCameraSystem() {
-      // ป้องกันการเปิดซ้อนกัน
       if(isCameraRunning) return;
       isCameraRunning = true;
 
       try {
-        statusEl.innerText = "⏳ โหลดระบบ...";
+        statusEl.innerText = "⏳ โหลดสมอง AI (SSD MobileNet)...";
         
-        // 1. ตรวจสอบว่าโมเดลโหลดหรือยัง (ถ้าโหลดแล้วไม่ต้องโหลดซ้ำ)
-        if (!faceapi.nets.tinyFaceDetector.params) {
+        // --- CHANGE 1: ใช้โมเดล SSD MobileNet V1 แทน TinyFace (แม่นยำกว่าแต่หนักกว่านิดหน่อย) ---
+        // เช็คว่าโหลดหรือยัง
+        if (!faceapi.nets.ssdMobilenetv1.params) {
              await Promise.all([
-              faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+              // เปลี่ยนจาก tinyFaceDetector เป็น ssdMobilenetv1
+              faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
               faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
               faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
         }
 
-        // 2. โหลด Database (ถ้ายังไม่มี)
         if (labeledFaceDescriptors.length === 0) {
+            statusEl.innerText = "⏳ โหลดฐานข้อมูล...";
             const data = await callBackend({ action: 'load_faces' });
             if (data.status === 'success' && data.faces.length > 0) {
                 labeledFaceDescriptors = data.faces.map(f => {
@@ -173,73 +182,56 @@
             }
         }
 
-        // 3. เปิดกล้อง (แบบ Safe Mode)
         statusEl.innerText = "กำลังเปิดกล้อง...";
         await startCameraSafe();
 
       } catch (err) {
         statusEl.innerText = "Error: " + err.message;
-        alert("เกิดข้อผิดพลาด: " + err.message + "\nกรุณารีเฟรชหน้าเว็บ");
-        isCameraRunning = false;
+        alert("โหลดระบบไม่สำเร็จ: " + err.message);
         closeCamera();
       }
     }
 
-    // --- ฟังก์ชันเปิดกล้องแบบยืดหยุ่น (Try -> Catch -> Fallback) ---
     async function startCameraSafe() {
-      stopStream(); // ล้างของเก่าก่อนเสมอ
-
+      stopStream();
+      // พยายามเปิด HD
       const constraintsHD = { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } };
-      const constraintsBasic = { video: { facingMode: 'user' } }; // แบบพื้นฐานที่สุด
+      const constraintsBasic = { video: { facingMode: 'user' } };
 
       try {
-        // ลองเปิดแบบ HD ก่อน
         currentStream = await navigator.mediaDevices.getUserMedia(constraintsHD);
       } catch (e) {
-        console.warn("HD failed, trying basic resolution...", e);
         try {
-          // ถ้าไม่ได้ ให้ลองเปิดแบบธรรมดา (Fallback)
           currentStream = await navigator.mediaDevices.getUserMedia(constraintsBasic);
         } catch (e2) {
-          throw new Error("ไม่สามารถเข้าถึงกล้องได้ กรุณาอนุญาตสิทธิ์ใน Browser Settings");
+          throw new Error("ไม่สามารถเข้าถึงกล้องได้");
         }
       }
 
       video.srcObject = currentStream;
-      // รอให้ Video พร้อมเล่นจริงๆ ถึงจะเริ่ม AI
-      video.onloadedmetadata = () => {
-        video.play();
-      };
+      video.onloadedmetadata = () => { video.play(); };
     }
 
-    // Event: เมื่อวิดีโอเล่นเริ่มทำงาน
     video.addEventListener('play', () => {
-      // ลบ Canvas เก่าทิ้งก่อนสร้างใหม่
-      const oldCanvas = document.querySelector('canvas');
-      if (oldCanvas) oldCanvas.remove();
-
+      const oldCanvas = document.querySelector('canvas'); if (oldCanvas) oldCanvas.remove();
       const canvas = faceapi.createCanvasFromMedia(video);
       document.getElementById('video-wrapper').append(canvas);
       
       const displaySize = { width: video.videoWidth, height: video.videoHeight };
       faceapi.matchDimensions(canvas, displaySize);
 
-      statusEl.innerText = currentMode === 'scan' ? "พร้อม! กดปุ่มถ่ายภาพ" : "พร้อมลงทะเบียน";
-
-      // เคลียร์ Interval เก่าก่อนสร้างใหม่
+      statusEl.innerText = currentMode === 'scan' ? "มองกล้องให้นิ่ง..." : "พร้อมลงทะเบียน";
       if (detectionInterval) clearInterval(detectionInterval);
 
+      // --- Loop AI ---
       detectionInterval = setInterval(async () => {
-        // Safety Check: ถ้าปิดหน้าจอกล้องไปแล้ว ให้หยุดทำงาน
-        if (cameraScreen.style.display === 'none') {
-            clearInterval(detectionInterval);
-            return;
-        }
-        
-        // ถ้าวิดีโอยังไม่พร้อม หรือถูกหยุดไปแล้ว ให้ข้าม
-        if (video.paused || video.ended) return;
+        if (cameraScreen.style.display === 'none' || video.paused || video.ended) return;
 
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 }))
+        // --- CHANGE 2: ใช้ SsdMobilenetv1Options (แม่นยำสูง) ---
+        // minConfidence: 0.5 หมายถึงต้องมั่นใจว่าเป็นหน้าคนจริงๆ ถึงจะจับ
+        const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+        
+        const detections = await faceapi.detectAllFaces(video, options)
           .withFaceLandmarks().withFaceDescriptors();
         
         if (detections.length > 0) {
@@ -247,25 +239,65 @@
           const largestFace = detections[0];
 
           if (labeledFaceDescriptors.length > 0) {
-            const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.45);
+            // --- CHANGE 3: ใช้ Threshold ที่เข้มงวดมาก (0.4) ---
+            const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, STRICT_THRESHOLD);
             const match = faceMatcher.findBestMatch(largestFace.descriptor);
             
+            // --- CHANGE 4: Logic ตรวจสอบความต่อเนื่อง (Consistency Check) ---
             if (match.label !== 'unknown') {
-              currentBestMatch = match;
-              if(currentMode === 'scan') statusEl.innerText = "พบ: " + match.label;
+              // ถ้าเฟรมนี้เจอหน้าเดิมกับเฟรมที่แล้ว
+              if (match.label === lastMatchedLabel) {
+                consistentMatchCount++;
+              } else {
+                // ถ้าเปลี่ยนคน ให้เริ่มนับใหม่
+                consistentMatchCount = 1;
+                lastMatchedLabel = match.label;
+              }
+
+              // แสดงหลอดความมั่นใจ (Visual Feedback)
+              confidenceBar.style.display = 'block';
+              let progress = (consistentMatchCount / REQUIRED_CONSISTENT_FRAMES) * 100;
+              if (progress > 100) progress = 100;
+              confidenceFill.style.width = progress + '%';
+
+              // ต้องเจอหน้าเดิมซ้ำกันตามจำนวนที่กำหนด ถึงจะยอมรับว่าเป็นคนนั้นจริง
+              if (consistentMatchCount >= REQUIRED_CONSISTENT_FRAMES) {
+                currentBestMatch = match;
+                if(currentMode === 'scan') {
+                    statusEl.innerText = "✅ ยืนยันตัวตน: " + match.label;
+                    statusEl.style.color = "#00ff00"; // สีเขียว
+                }
+              } else {
+                statusEl.innerText = "กำลังตรวจสอบ... (" + consistentMatchCount + "/" + REQUIRED_CONSISTENT_FRAMES + ")";
+                statusEl.style.color = "white";
+                currentBestMatch = null; // ยังไม่ฟันธง
+              }
+            
             } else {
+              // ถ้าไม่รู้จัก (Unknown)
+              consistentMatchCount = 0;
+              lastMatchedLabel = null;
               currentBestMatch = null;
-              if(currentMode === 'scan') statusEl.innerText = "ไม่รู้จักใบหน้า";
+              confidenceBar.style.display = 'none';
+              if(currentMode === 'scan') {
+                  statusEl.innerText = "❌ ไม่พบในฐานข้อมูล";
+                  statusEl.style.color = "red";
+              }
             }
           }
         } else {
+          // ไม่เจอหน้าเลย
+          consistentMatchCount = 0;
           currentBestMatch = null;
-          if(currentMode === 'scan') statusEl.innerText = "มองหากล้อง...";
+          confidenceBar.style.display = 'none';
+          if(currentMode === 'scan') {
+              statusEl.innerText = "มองหากล้อง...";
+              statusEl.style.color = "white";
+          }
         }
-      }, 200);
+      }, 200); // เช็คทุก 200ms
     });
 
-    // --- Shutter & Processing ---
     function handleShutter() {
       if (currentMode === 'scan') {
         startCountdownAndCapture();
@@ -277,6 +309,12 @@
     function startCountdownAndCapture() {
       if (labeledFaceDescriptors.length === 0) { alert("ยังไม่มีฐานข้อมูลใบหน้า"); return; }
       
+      // เพิ่มการป้องกัน: ถ้า AI ยังไม่ Confirm อย่าเพิ่งให้ถ่าย
+      if (!currentBestMatch && currentMode === 'scan') {
+          alert("⚠️ ระบบยังไม่ยืนยันใบหน้าชัดเจน กรุณาอยู่นิ่งๆ สักครู่");
+          return;
+      }
+
       shutterBtn.style.pointerEvents = 'none'; 
       let count = 3;
       countdownEl.style.display = 'block';
@@ -296,7 +334,7 @@
 
     function captureScan() {
       if (!currentBestMatch || currentBestMatch.label === 'unknown') {
-        statusEl.innerText = "❌ ไม่พบใบหน้า (ลองใหม่)";
+        statusEl.innerText = "❌ ระบุตัวตนไม่ได้";
         playBeep(); playBeep();
         shutterBtn.style.pointerEvents = 'auto';
         return;
@@ -304,7 +342,8 @@
 
       playBeep();
       triggerFlash();
-      statusEl.innerText = "📸 กำลังบันทึก: " + currentBestMatch.label;
+      statusEl.innerText = "📸 บันทึก: " + currentBestMatch.label;
+      statusEl.style.color = "white";
 
       const imageBase64 = getResizedFrame();
 
@@ -325,9 +364,11 @@
       const name = prompt("กรุณากรอกชื่อ-สกุล:");
       if (!name) return;
 
-      statusEl.innerText = "⏳ กำลังประมวลผล...";
+      statusEl.innerText = "⏳ กำลังประมวลผลความละเอียดสูง...";
       try {
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        // ใช้ SSD MobileNet ในการลงทะเบียนด้วย เพื่อให้ Reference ชัดที่สุด
+        const detection = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+            .withFaceLandmarks().withFaceDescriptor();
         
         if (detection) {
           playBeep();
@@ -335,7 +376,7 @@
           
           labeledFaceDescriptors.push(new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]));
           
-          statusEl.innerText = "💾 กำลังส่งข้อมูล...";
+          statusEl.innerText = "💾 กำลังบันทึก...";
           await callBackend({
             action: 'save_face',
             name: name,
@@ -345,7 +386,7 @@
           alert("ลงทะเบียนสำเร็จ: " + name);
           statusEl.innerText = "ลงทะเบียนเรียบร้อย";
         } else {
-          alert("❌ ไม่พบใบหน้า กรุณาลองใหม่");
+          alert("❌ ไม่พบใบหน้า หรือหน้าไม่ชัดเจน");
           statusEl.innerText = "พร้อมลงทะเบียน";
         }
       } catch (e) {
@@ -389,7 +430,6 @@
       const response = await fetch(GAS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
       return await response.json();
     }
-
   </script>
 </body>
 </html>
