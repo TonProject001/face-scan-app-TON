@@ -3,138 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Face Time Attendance</title>
+  <title>Face SICU</title>
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;700&display=swap" rel="stylesheet">
   
   <style>
-    /* Reset & Base Styles */
+    /* ... (ใช้ CSS เดิมทั้งหมด ไม่ต้องแก้) ... */
     * { box-sizing: border-box; }
-    body { 
-      font-family: 'Prompt', sans-serif; 
-      margin: 0; padding: 0; 
-      background: #000; 
-      color: white; 
-      height: 100vh; 
-      overflow: hidden; /* ห้ามเลื่อนหน้าจอ */
-      display: flex; flex-direction: column;
-    }
-
-    /* --- หน้า Home (เมนูหลัก) --- */
-    #home-screen {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 100;
-      transition: transform 0.3s ease-in-out;
-    }
-    
+    body { font-family: 'Prompt', sans-serif; margin: 0; padding: 0; background: #000; color: white; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+    #home-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; transition: transform 0.3s ease-in-out; }
     .logo-area { margin-bottom: 50px; text-align: center; }
     .logo-icon { font-size: 80px; margin-bottom: 10px; }
     .app-title { font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
     .app-subtitle { font-size: 16px; opacity: 0.8; }
-
-    .menu-btn {
-      width: 80%; max-width: 300px;
-      padding: 18px; margin: 10px 0;
-      font-size: 18px; font-weight: 500; font-family: 'Prompt', sans-serif;
-      border: none; border-radius: 50px;
-      cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      transition: transform 0.2s;
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-    }
+    .menu-btn { width: 80%; max-width: 300px; padding: 18px; margin: 10px 0; font-size: 18px; font-weight: 500; font-family: 'Prompt', sans-serif; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: transform 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
     .menu-btn:active { transform: scale(0.95); }
-    
     .btn-checkin { background: #fff; color: #1e3c72; font-weight: bold; }
     .btn-register { background: rgba(255,255,255,0.2); color: #fff; border: 2px solid rgba(255,255,255,0.5); }
-
-    /* --- หน้า Camera (ถ่ายภาพ) --- */
-    #camera-screen {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: #000;
-      display: none; /* ซ่อนไว้ก่อน */
-      z-index: 50;
-    }
-
-    /* วิดีโอเต็มจอ */
-    #video-wrapper {
-      position: relative; width: 100%; height: 100%; overflow: hidden;
-    }
-    video {
-      width: 100%; height: 100%;
-      object-fit: cover; /* ให้ภาพเต็มจอโดยไม่เสียสัดส่วน (ตัดขอบออก) */
-      transform: scaleX(-1); /* กลับด้านเหมือนกระจก */
-    }
-    canvas { 
-      position: absolute; top: 0; left: 0; 
-      width: 100%; height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1);
-    }
-
-    /* UI Overlay บนกล้อง */
-    .top-bar {
-      position: absolute; top: 0; left: 0; width: 100%;
-      padding: 20px;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
-      display: flex; justify-content: space-between; align-items: center;
-      z-index: 60;
-    }
+    #camera-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; z-index: 50; }
+    #video-wrapper { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    .top-bar { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent); display: flex; justify-content: space-between; align-items: center; z-index: 60; }
     .status-text { font-size: 14px; text-shadow: 1px 1px 2px black; }
-    .close-btn {
-      background: rgba(0,0,0,0.3); border: none; color: white;
-      width: 40px; height: 40px; border-radius: 50%;
-      font-size: 20px; cursor: pointer;
-    }
-
-    /* ปุ่ม Shutter ด้านล่าง */
-    .bottom-controls {
-      position: absolute; bottom: 0; left: 0; width: 100%;
-      height: 120px;
-      display: flex; justify-content: center; align-items: center;
-      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-      z-index: 60;
-    }
-
-    /* ปุ่มถ่ายรูปวงกลม (เหมือน iPhone) */
-    #shutter-btn {
-      width: 80px; height: 80px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.3); /* วงนอกจางๆ */
-      border: 4px solid white;
-      display: flex; justify-content: center; align-items: center;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    #shutter-btn .inner-circle {
-      width: 65px; height: 65px;
-      background: white;
-      border-radius: 50%;
-      transition: all 0.2s;
-    }
+    .close-btn { background: rgba(0,0,0,0.3); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; }
+    .bottom-controls { position: absolute; bottom: 0; left: 0; width: 100%; height: 120px; display: flex; justify-content: center; align-items: center; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); z-index: 60; }
+    #shutter-btn { width: 80px; height: 80px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); border: 4px solid white; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s; }
+    #shutter-btn .inner-circle { width: 65px; height: 65px; background: white; border-radius: 50%; transition: all 0.2s; }
     #shutter-btn:active .inner-circle { width: 55px; height: 55px; background: #ddd; }
     #shutter-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* ปุ่มลงทะเบียน (เปลี่ยนสี) */
     #shutter-btn.reg-mode { border-color: #007bff; }
     #shutter-btn.reg-mode .inner-circle { background: #007bff; }
-
-    /* Flash Effect */
-    #shutter-flash {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: white; opacity: 0; pointer-events: none; z-index: 100;
-    }
+    #shutter-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; z-index: 100; }
     .flash-anim { animation: flash 0.2s ease-out; }
     @keyframes flash { 0% { opacity: 0.8; } 100% { opacity: 0; } }
-
-    /* Countdown */
-    #countdown-overlay {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      font-size: 150px; font-weight: bold; color: white;
-      text-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      display: none; z-index: 80;
-    }
-
+    #countdown-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 150px; font-weight: bold; color: white; text-shadow: 0 4px 20px rgba(0,0,0,0.5); display: none; z-index: 80; }
   </style>
 </head>
 <body>
@@ -145,16 +48,13 @@
       <div class="app-title">Face Check-in</div>
       <div class="app-subtitle">ระบบลงเวลาด้วยใบหน้า</div>
     </div>
-    
     <button class="menu-btn btn-checkin" onclick="openCamera('scan')">
       <span>🕒</span> ลงเวลาทำงาน
     </button>
-    
     <button class="menu-btn btn-register" onclick="openCamera('register')">
       <span>👤</span> ลงทะเบียนใบหน้า
     </button>
-
-    <div style="margin-top:30px; font-size: 12px; opacity: 0.5;">v.2.0 Mobile Optimized</div>
+    <div style="margin-top:30px; font-size: 12px; opacity: 0.5;">v.2.1 Stable Camera</div>
   </div>
 
   <div id="camera-screen">
@@ -162,13 +62,11 @@
       <div id="status">กำลังเตรียมกล้อง...</div>
       <button class="close-btn" onclick="closeCamera()">✕</button>
     </div>
-
     <div id="video-wrapper">
       <video id="video" autoplay muted playsinline></video>
       <div id="countdown-overlay">3</div>
       <div id="shutter-flash"></div>
     </div>
-
     <div class="bottom-controls">
       <div id="shutter-btn" onclick="handleShutter()">
         <div class="inner-circle"></div>
@@ -182,15 +80,14 @@
     // ******************************************************
     const GAS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzpYV4iyfDavR6S2xrfUfWpQdlao-4GXtMSNRzcrXT69p6rdzP92NWWWMf7oqM2-kx-jw/exec'; 
 
-    // ตัวแปรระบบ
-    let currentMode = 'scan'; // 'scan' หรือ 'register'
+    let currentMode = 'scan';
     let isCameraRunning = false;
     let detectionInterval;
     let labeledFaceDescriptors = [];
     let currentBestMatch = null;
+    let currentStream = null; // เก็บค่า Stream ไว้เพื่อสั่งปิดให้สนิท
+
     const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-    
-    // Element References
     const homeScreen = document.getElementById('home-screen');
     const cameraScreen = document.getElementById('camera-screen');
     const video = document.getElementById('video');
@@ -198,21 +95,15 @@
     const shutterBtn = document.getElementById('shutter-btn');
     const countdownEl = document.getElementById('countdown-overlay');
     const shutterFlash = document.getElementById('shutter-flash');
-
-    // Audio Context
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     // --- Core Functions ---
 
-    // 1. เปิดกล้องตามโหมดที่เลือก
     async function openCamera(mode) {
       currentMode = mode;
-      
-      // UI Change
       homeScreen.style.display = 'none';
       cameraScreen.style.display = 'block';
       
-      // ปรับหน้าตาปุ่มตามโหมด
       if (mode === 'register') {
         shutterBtn.classList.add('reg-mode');
         statusEl.innerText = "โหมด: ลงทะเบียน (กดปุ่มเพื่อบันทึก)";
@@ -221,94 +112,147 @@
         statusEl.innerText = "โหมด: ลงเวลา (กดปุ่มเพื่อถ่าย)";
       }
 
-      // เริ่มโหลด AI และเปิดกล้อง
-      if (!isCameraRunning) {
-        await initCameraSystem();
-      }
+      await initCameraSystem();
     }
 
-    // 2. ปิดกล้อง กลับหน้า Home
     function closeCamera() {
+      // 1. สั่งปิดกล้องทันที (สำคัญมาก)
+      stopStream();
+      
+      // 2. หยุด Loop AI
+      if (detectionInterval) clearInterval(detectionInterval);
+      
+      // 3. UI Changes
       homeScreen.style.display = 'flex';
       cameraScreen.style.display = 'none';
+      isCameraRunning = false;
       
-      // หยุดการตรวจจับ แต่เลี้ยงกล้องไว้เพื่อความเร็วในการเข้าครั้งหน้า
-      // (ถ้าต้องการประหยัดแบต ให้สั่ง video.pause() หรือ stop stream ที่นี่)
+      // 4. ล้าง Canvas ที่ค้างอยู่
+      const canvas = document.querySelector('canvas');
+      if (canvas) canvas.remove();
+    }
+
+    // --- ฟังก์ชันหยุดกล้อง (Fix ปัญหากล้องค้าง) ---
+    function stopStream() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => {
+          track.stop(); // สั่งหยุดทีละ Track
+        });
+        currentStream = null;
+      }
+      if (video.srcObject) {
+        video.srcObject = null;
+      }
     }
 
     async function initCameraSystem() {
-      try {
-        statusEl.innerText = "⏳ กำลังโหลด AI...";
-        
-        // โหลดโมเดล
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-        ]);
+      // ป้องกันการเปิดซ้อนกัน
+      if(isCameraRunning) return;
+      isCameraRunning = true;
 
-        // โหลดข้อมูลใบหน้า
-        statusEl.innerText = "⏳ กำลังโหลดฐานข้อมูล...";
-        const data = await callBackend({ action: 'load_faces' });
-        if (data.status === 'success' && data.faces.length > 0) {
-            labeledFaceDescriptors = data.faces.map(f => {
-              const descriptorFloat32 = new Float32Array(Object.values(f.descriptor));
-              return new faceapi.LabeledFaceDescriptors(f.label, [descriptorFloat32]);
-            });
+      try {
+        statusEl.innerText = "⏳ โหลดระบบ...";
+        
+        // 1. ตรวจสอบว่าโมเดลโหลดหรือยัง (ถ้าโหลดแล้วไม่ต้องโหลดซ้ำ)
+        if (!faceapi.nets.tinyFaceDetector.params) {
+             await Promise.all([
+              faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+              faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+              faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+            ]);
         }
 
-        // เปิดกล้อง (บังคับกล้องหน้า + ขนาดที่เหมาะสม)
+        // 2. โหลด Database (ถ้ายังไม่มี)
+        if (labeledFaceDescriptors.length === 0) {
+            const data = await callBackend({ action: 'load_faces' });
+            if (data.status === 'success' && data.faces.length > 0) {
+                labeledFaceDescriptors = data.faces.map(f => {
+                  const descriptorFloat32 = new Float32Array(Object.values(f.descriptor));
+                  return new faceapi.LabeledFaceDescriptors(f.label, [descriptorFloat32]);
+                });
+            }
+        }
+
+        // 3. เปิดกล้อง (แบบ Safe Mode)
         statusEl.innerText = "กำลังเปิดกล้อง...";
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            facingMode: 'user', // กล้องหน้า
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 } 
-          } 
-        });
-        video.srcObject = stream;
-        isCameraRunning = true;
+        await startCameraSafe();
 
       } catch (err) {
         statusEl.innerText = "Error: " + err.message;
-        alert("ไม่สามารถเปิดกล้องได้: " + err.message);
+        alert("เกิดข้อผิดพลาด: " + err.message + "\nกรุณารีเฟรชหน้าเว็บ");
+        isCameraRunning = false;
+        closeCamera();
       }
     }
 
-    // Event: เมื่อวิดีโอเล่น ให้เริ่มลูป AI
+    // --- ฟังก์ชันเปิดกล้องแบบยืดหยุ่น (Try -> Catch -> Fallback) ---
+    async function startCameraSafe() {
+      stopStream(); // ล้างของเก่าก่อนเสมอ
+
+      const constraintsHD = { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } };
+      const constraintsBasic = { video: { facingMode: 'user' } }; // แบบพื้นฐานที่สุด
+
+      try {
+        // ลองเปิดแบบ HD ก่อน
+        currentStream = await navigator.mediaDevices.getUserMedia(constraintsHD);
+      } catch (e) {
+        console.warn("HD failed, trying basic resolution...", e);
+        try {
+          // ถ้าไม่ได้ ให้ลองเปิดแบบธรรมดา (Fallback)
+          currentStream = await navigator.mediaDevices.getUserMedia(constraintsBasic);
+        } catch (e2) {
+          throw new Error("ไม่สามารถเข้าถึงกล้องได้ กรุณาอนุญาตสิทธิ์ใน Browser Settings");
+        }
+      }
+
+      video.srcObject = currentStream;
+      // รอให้ Video พร้อมเล่นจริงๆ ถึงจะเริ่ม AI
+      video.onloadedmetadata = () => {
+        video.play();
+      };
+    }
+
+    // Event: เมื่อวิดีโอเล่นเริ่มทำงาน
     video.addEventListener('play', () => {
-      // สร้าง Canvas สำหรับวาดกรอบ (เราซ่อน Canvas ไว้ใน Mobile Mode เพราะอยากให้ดูคลีนๆ แต่ AI ยังทำงานอยู่)
+      // ลบ Canvas เก่าทิ้งก่อนสร้างใหม่
+      const oldCanvas = document.querySelector('canvas');
+      if (oldCanvas) oldCanvas.remove();
+
       const canvas = faceapi.createCanvasFromMedia(video);
       document.getElementById('video-wrapper').append(canvas);
       
-      // ซ่อน Canvas (Option: ถ้าอยากให้เห็นกรอบเขียว ให้ลบบรรทัดนี้)
-      // canvas.style.display = 'none'; 
-
       const displaySize = { width: video.videoWidth, height: video.videoHeight };
       faceapi.matchDimensions(canvas, displaySize);
 
       statusEl.innerText = currentMode === 'scan' ? "พร้อม! กดปุ่มถ่ายภาพ" : "พร้อมลงทะเบียน";
 
+      // เคลียร์ Interval เก่าก่อนสร้างใหม่
+      if (detectionInterval) clearInterval(detectionInterval);
+
       detectionInterval = setInterval(async () => {
-        // หยุดทำงานถ้าหน้ากล้องถูกปิดอยู่
-        if (cameraScreen.style.display === 'none') return;
+        // Safety Check: ถ้าปิดหน้าจอกล้องไปแล้ว ให้หยุดทำงาน
+        if (cameraScreen.style.display === 'none') {
+            clearInterval(detectionInterval);
+            return;
+        }
+        
+        // ถ้าวิดีโอยังไม่พร้อม หรือถูกหยุดไปแล้ว ให้ข้าม
+        if (video.paused || video.ended) return;
 
         const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 }))
           .withFaceLandmarks().withFaceDescriptors();
         
-        // Logic เลือกหน้าใหญ่สุด (เหมือนเดิม)
         if (detections.length > 0) {
           detections.sort((a, b) => (b.detection.box.width * b.detection.box.height) - (a.detection.box.width * a.detection.box.height));
           const largestFace = detections[0];
 
-          // เทียบหน้า
           if (labeledFaceDescriptors.length > 0) {
             const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.45);
             const match = faceMatcher.findBestMatch(largestFace.descriptor);
             
             if (match.label !== 'unknown') {
               currentBestMatch = match;
-              if(currentMode === 'scan') statusEl.innerText = "พบผู้ใช้งาน: " + match.label;
+              if(currentMode === 'scan') statusEl.innerText = "พบ: " + match.label;
             } else {
               currentBestMatch = null;
               if(currentMode === 'scan') statusEl.innerText = "ไม่รู้จักใบหน้า";
@@ -321,13 +265,11 @@
       }, 200);
     });
 
-    // 3. ฟังก์ชันกดปุ่ม Shutter
+    // --- Shutter & Processing ---
     function handleShutter() {
       if (currentMode === 'scan') {
-        // โหมดลงเวลา: นับถอยหลัง -> ถ่าย
         startCountdownAndCapture();
       } else {
-        // โหมดลงทะเบียน: ถามชื่อ -> ถ่ายเลย (ไม่ต้องนับ)
         registerProcess();
       }
     }
@@ -335,7 +277,7 @@
     function startCountdownAndCapture() {
       if (labeledFaceDescriptors.length === 0) { alert("ยังไม่มีฐานข้อมูลใบหน้า"); return; }
       
-      shutterBtn.style.pointerEvents = 'none'; // ล็อกปุ่ม
+      shutterBtn.style.pointerEvents = 'none'; 
       let count = 3;
       countdownEl.style.display = 'block';
       countdownEl.innerText = count;
@@ -347,12 +289,11 @@
         } else {
           clearInterval(timer);
           countdownEl.style.display = 'none';
-          captureScan(); // ถ่ายจริง
+          captureScan(); 
         }
       }, 1000);
     }
 
-    // Process: ลงเวลา
     function captureScan() {
       if (!currentBestMatch || currentBestMatch.label === 'unknown') {
         statusEl.innerText = "❌ ไม่พบใบหน้า (ลองใหม่)";
@@ -361,7 +302,6 @@
         return;
       }
 
-      // Feedback
       playBeep();
       triggerFlash();
       statusEl.innerText = "📸 กำลังบันทึก: " + currentBestMatch.label;
@@ -375,10 +315,12 @@
       }).then(res => {
         statusEl.innerText = "✅ " + res.message;
         setTimeout(() => { statusEl.innerText = "พร้อมถ่ายต่อ..."; shutterBtn.style.pointerEvents = 'auto'; }, 2000);
+      }).catch(err => {
+         statusEl.innerText = "❌ Error ส่งข้อมูลไม่ได้";
+         shutterBtn.style.pointerEvents = 'auto';
       });
     }
 
-    // Process: ลงทะเบียน
     async function registerProcess() {
       const name = prompt("กรุณากรอกชื่อ-สกุล:");
       if (!name) return;
@@ -404,13 +346,13 @@
           statusEl.innerText = "ลงทะเบียนเรียบร้อย";
         } else {
           alert("❌ ไม่พบใบหน้า กรุณาลองใหม่");
+          statusEl.innerText = "พร้อมลงทะเบียน";
         }
       } catch (e) {
         alert("Error: " + e);
       }
     }
 
-    // Utilities
     function triggerFlash() {
       shutterFlash.classList.add('flash-anim');
       setTimeout(() => shutterFlash.classList.remove('flash-anim'), 500);
@@ -425,21 +367,15 @@
       osc.start(); setTimeout(() => osc.stop(), 150);
     }
 
-    // ฟังก์ชันจับภาพ (ย่อขนาดให้พอดีก่อนส่ง เพื่อความเร็ว)
     function getResizedFrame() {
       const canvas = document.createElement('canvas');
-      // ลดขนาดภาพลงหน่อยเพื่อให้ส่งไวขึ้น (เช่น HD 720p)
       canvas.width = video.videoWidth; 
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
-      
-      // พลิกรูปกลับคืน (เพราะเรา Mirror video ไว้)
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
+      ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0);
       
-      // Watermark
-      ctx.translate(canvas.width, 0); ctx.scale(-1, 1); // Reset transform for text
+      ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
       const now = new Date();
       const dateText = now.toLocaleDateString('th-TH') + " " + now.toLocaleTimeString('th-TH');
       ctx.font = "20px Prompt"; ctx.fillStyle = "white"; 
